@@ -31,6 +31,7 @@ class HeatMapTilesProvider extends TileProvider {
       radius: radius,
       minOpacity: heatMapOptions.minOpacity,
       gradient: heatMapOptions.gradient,
+      blurFactor: heatMapOptions.blurFactor,
     );
     return HeatMapImage(filteredData, imageHMOptions, tileSize);
   }
