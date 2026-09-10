@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'latlong.dart';
 
@@ -15,7 +16,9 @@ class InMemoryHeatMapDataSource extends HeatMapDataSource {
   final LatLngBounds bounds;
 
   InMemoryHeatMapDataSource({required this.data})
-      : bounds = LatLngBounds.fromPoints(data.map((e) => e.latLng).toList());
+      : bounds = data.isNotEmpty
+            ? LatLngBounds.fromPoints(data.map((e) => e.latLng).toList())
+            : LatLngBounds(const LatLng(0, 0), const LatLng(0, 0));
 
   ///Filters in memory data returning the data ungridded
   @override
@@ -39,7 +42,9 @@ class GriddedHeatMapDataSource extends HeatMapDataSource {
   final Map<double, List<WeightedLatLng>> _gridCache = {};
 
   GriddedHeatMapDataSource({required this.data, required this.radius})
-      : bounds = LatLngBounds.fromPoints(data.map((e) => e.latLng).toList());
+      : bounds = data.isNotEmpty
+            ? LatLngBounds.fromPoints(data.map((e) => e.latLng).toList())
+            : LatLngBounds(const LatLng(0, 0), const LatLng(0, 0));
 
   ///Filters in memory data returning the data ungridded
   @override
@@ -68,8 +73,13 @@ class GriddedHeatMapDataSource extends HeatMapDataSource {
 
     final cellSize = radius / 2;
 
-    List<List<WeightedLatLng?>> grid = []..length =
-        (size.height / cellSize).ceil() + 2;
+    final gridHeight = math.max(1, (size.height / cellSize).ceil() + 4);
+    final gridWidth = math.max(1, (size.width / cellSize).ceil() + 4);
+
+    final grid = List<List<WeightedLatLng?>>.generate(
+      gridHeight,
+      (_) => List<WeightedLatLng?>.filled(gridWidth, null),
+    );
 
     List<WeightedLatLng> griddedData = [];
 
@@ -85,17 +95,18 @@ class GriddedHeatMapDataSource extends HeatMapDataSource {
       final x = ((pixel.x) ~/ cellSize) + 2;
       final y = ((pixel.y) ~/ cellSize) + 2;
 
-      grid[y] = grid[y]..length = (size.height / cellSize).ceil() + 2;
-      var cell = grid[y][x];
+      if (y >= 0 && y < grid.length && x >= 0 && x < grid[y].length) {
+        var cell = grid[y][x];
 
-      if (cell == null) {
-        grid[y][x] = WeightedLatLng(point.latLng, 1);
-        cell = grid[y][x];
-      } else {
-        cell.merge(point.latLng.longitude, point.latLng.latitude, 1);
+        if (cell == null) {
+          grid[y][x] = WeightedLatLng(point.latLng, 1);
+          cell = grid[y][x];
+        } else {
+          cell.merge(point.latLng.longitude, point.latLng.latitude, 1);
+        }
+        localMax = math.max(cell!.intensity, localMax);
+        localMin = math.min(cell.intensity, localMin);
       }
-      localMax = math.max(cell!.intensity, localMax);
-      localMin = math.min(cell.intensity, localMin);
     }
 
     for (var i = 0, len = grid.length; i < len; i++) {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -94,7 +95,10 @@ class HeatMap {
         byteData.setUint8(i, _palette.getUint8(j));
         byteData.setUint8(i + 1, _palette.getUint8(j + 1));
         byteData.setUint8(i + 2, _palette.getUint8(j + 2));
-        byteData.setUint8(i + 3, byteData.getUint8(i + 3) + 255);
+        byteData.setUint8(
+          i + 3,
+          math.min(255, byteData.getUint8(i + 3) + 255),
+        );
       } else {
         transparentByteCount = transparentByteCount + 4;
       }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,8 +25,8 @@ class HeatMapPaint extends StatefulWidget {
 class _HeatMapPaintState extends State<HeatMapPaint> {
   late ByteData _palette;
   late ui.Image _baseImage;
-  late ui.Image _heatmapImage;
-  late Uint8List _heatmap;
+  ui.Image? _heatmapImage;
+  Uint8List? _heatmap;
   final Completer<void> ready = Completer<void>();
 
   Future<void> get onReady => ready.future;
@@ -70,11 +71,10 @@ class _HeatMapPaintState extends State<HeatMapPaint> {
     baseCirclePainter.paint(canvas, size);
     final picture = recorder.endRecording();
     final image = await picture.toImage(radius.round() * 2, radius.round() * 2);
-    setState(() {
-      _palette = colorPalette;
-      _baseImage = image;
-      ready.complete();
-    });
+    _palette = colorPalette;
+    _baseImage = image;
+    ready.complete();
+    await _colorize(image);
   }
 
   _colorize(ui.Image baseCircle) async {
@@ -97,7 +97,10 @@ class _HeatMapPaintState extends State<HeatMapPaint> {
           byteData.setUint8(i, _palette.getUint8(j));
           byteData.setUint8(i + 1, _palette.getUint8(j + 1));
           byteData.setUint8(i + 2, _palette.getUint8(j + 2));
-          byteData.setUint8(i + 3, byteData.getUint8(i + 3) + 255);
+          byteData.setUint8(
+            i + 3,
+            math.min(255, byteData.getUint8(i + 3) + 255),
+          );
         }
         if (i < 40) {}
       }
@@ -109,10 +112,12 @@ class _HeatMapPaintState extends State<HeatMapPaint> {
               image.width, image.height, byteData.buffer.asUint8List())
           .buildHeaded();
 
-      setState(() {
-        _heatmapImage = headeredImage;
-        _heatmap = headered;
-      });
+      if (mounted) {
+        setState(() {
+          _heatmapImage = headeredImage;
+          _heatmap = headered;
+        });
+      }
     }
   }
 
@@ -124,8 +129,15 @@ class _HeatMapPaintState extends State<HeatMapPaint> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [Positioned(top: 0, left: 0, child: Image.memory(_heatmap))],
+    if (_heatmap == null) {
+      return SizedBox(width: widget.width, height: widget.height);
+    }
+    return SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: Stack(
+        children: [Positioned(top: 0, left: 0, child: Image.memory(_heatmap!))],
+      ),
     );
   }
 }
