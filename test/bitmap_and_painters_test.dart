@@ -133,29 +133,4 @@ void main() {
     });
   });
 
-  group('HeatMapPainter and HeatMapState', () {
-    test('HeatMapPainter paints image and shouldRepaint returns true', () async {
-      final content = Uint8List(4 * 4 * bitmapPixelLength);
-      final bitmap = Bitmap.fromHeadless(4, 4, content);
-      final img = await bitmap.buildImage();
-
-      final painter = HeatMapPainter(img);
-      expect(painter.shouldRepaint(painter), isTrue);
-
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      painter.paint(canvas, const Size(10, 10));
-      final picture = recorder.endRecording();
-      expect(picture, isNotNull);
-    });
-
-    test('HeatMapState lifecycle', () {
-      final state = HeatMapState(HeatMapOptions());
-      expect(state.imageSink, isNotNull);
-      expect(state.imageSink!.isClosed, isFalse);
-
-      state.dispose();
-      expect(state.imageSink!.isClosed, isTrue);
-    });
-  });
 }

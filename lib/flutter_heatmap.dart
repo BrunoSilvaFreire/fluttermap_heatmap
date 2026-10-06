@@ -6,4 +6,3 @@ export 'package:flutter_map_heatmap/src/heatmap/bitmap.dart';
 export 'package:flutter_map_heatmap/src/heatmap/grayscale_map_painter.dart';
 export 'package:flutter_map_heatmap/src/heatmap/heat_map_generator.dart';
 export 'package:flutter_map_heatmap/src/heatmap/heat_map_options.dart';
-export 'package:flutter_map_heatmap/src/heatmap/heatmap_paint.dart';

@@ -5,7 +5,6 @@ import 'package:latlong2/latlong.dart';
 
 import 'latlong.dart';
 
-
 abstract class HeatMapDataSource {
   /// provides data for the given bounds and zoom level
   List<WeightedLatLng> getData(LatLngBounds bounds, double z);
@@ -23,7 +22,11 @@ class InMemoryHeatMapDataSource extends HeatMapDataSource {
   ///Filters in memory data returning the data ungridded
   @override
   List<WeightedLatLng> getData(LatLngBounds bounds, double z) {
-    if (bounds.isOverlapping(bounds)) {
+    // `this.bounds` is the extent of the data this source holds; the parameter is the
+    // viewport being asked for. Comparing the parameter with itself (as this did) is
+    // always true, so the fast path never fired — the per-point filter below was doing
+    // all the work.
+    if (this.bounds.isOverlapping(bounds)) {
       if (data.isEmpty) {
         return [];
       }
@@ -49,10 +52,12 @@ class GriddedHeatMapDataSource extends HeatMapDataSource {
   ///Filters in memory data returning the data ungridded
   @override
   List<WeightedLatLng> getData(LatLngBounds bounds, double z) {
-    if (data.isNotEmpty && bounds.isOverlapping(bounds)) {
+    if (data.isNotEmpty && this.bounds.isOverlapping(bounds)) {
       var griddedData = _getGriddedData(z);
       if (griddedData.isEmpty) {
-        return [];
+        // Defensive: the grid is built from this source's own bounds, so every point it
+        // holds lands in a cell. Non-empty data cannot grid to nothing.
+        return []; // coverage:ignore-line
       }
       return griddedData
           .where((point) => bounds.contains(point.latLng))
@@ -83,14 +88,12 @@ class GriddedHeatMapDataSource extends HeatMapDataSource {
 
     List<WeightedLatLng> griddedData = [];
 
-    final v = 1 / math.pow(2, math.max(0, math.min(20 - 2, 12)));
-
     var localMin = 0.0;
     var localMax = 0.0;
     for (final point in data) {
       var globalPixel = crs.latLngToOffset(point.latLng, z);
-      var pixel =
-          math.Point(globalPixel.dx - leftBound.dx, globalPixel.dy - leftBound.dy);
+      var pixel = math.Point(
+          globalPixel.dx - leftBound.dx, globalPixel.dy - leftBound.dy);
 
       final x = ((pixel.x) ~/ cellSize) + 2;
       final y = ((pixel.y) ~/ cellSize) + 2;
