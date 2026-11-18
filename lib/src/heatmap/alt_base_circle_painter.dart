@@ -12,21 +12,26 @@ class AltBaseCirclePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final _width = size.width;
-    final _height = size.height;
+    final width = size.width;
+    final height = size.height;
     final r2 = radius;
 
-    final rect = Rect.fromPoints(Offset(_width / 2 - r2, _height / 2 - r2),
-        Offset(_width / 2 + r2, _height / 2 + r2));
+    final rect = Rect.fromPoints(Offset(width / 2 - r2, height / 2 - r2),
+        Offset(width / 2 + r2, height / 2 + r2));
 
     var pointPaint = Paint()..color = Colors.black;
 
     pointPaint.strokeWidth = 4;
 
+    final innerStop = (1.0 - blurFactor).clamp(0.0, 0.99);
     final gradient = RadialGradient(
-            colors: const [Color.fromRGBO(0, 0, 0, 1), Color.fromRGBO(0, 0, 0, 0)],
-            stops: const [0, 1],
-            radius: blurFactor)
+            colors: const [
+              Color.fromRGBO(0, 0, 0, 1),
+              Color.fromRGBO(0, 0, 0, 1),
+              Color.fromRGBO(0, 0, 0, 0),
+            ],
+            stops: [0.0, innerStop, 1.0],
+            radius: 0.5)
         .createShader(rect);
 
     canvas.drawPath(
@@ -38,6 +43,6 @@ class AltBaseCirclePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(AltBaseCirclePainter oldDelegate) {
-    return false;
+    return oldDelegate.radius != radius || oldDelegate.blurFactor != blurFactor;
   }
 }

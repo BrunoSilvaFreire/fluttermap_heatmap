@@ -20,7 +20,7 @@ class HeatMap {
   final Completer<void> ready = Completer<void>();
 
   /// Base Shapes used to represent each point
-  final Map<double, ui.Image> _baseShapes = {};
+  final Map<String, ui.Image> _baseShapes = {};
 
   Future<void> get onReady => ready.future;
 
@@ -52,9 +52,10 @@ class HeatMap {
   }
 
   Future<ui.Image> _getBaseShape() async {
-    final radius = options.radius;
-    if (_baseShapes.containsKey(radius)) {
-      return _baseShapes[radius]!;
+    final radius = math.max(1.0, options.radius);
+    final key = '${radius}_${options.blurFactor}';
+    if (_baseShapes.containsKey(key)) {
+      return _baseShapes[key]!;
     }
 
     final recorder = ui.PictureRecorder();
@@ -64,9 +65,10 @@ class HeatMap {
     Size size = Size.fromRadius(radius);
     baseCirclePainter.paint(canvas, size);
     final picture = recorder.endRecording();
-    final image = await picture.toImage(radius.round() * 2, radius.round() * 2);
+    final imgDimension = math.max(1, radius.round()) * 2;
+    final image = await picture.toImage(imgDimension, imgDimension);
 
-    _baseShapes[radius] = image;
+    _baseShapes[key] = image;
     return image;
   }
 
@@ -86,23 +88,24 @@ class HeatMap {
 
   Future<Uint8List> _colorize(ui.Image image) async {
     final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    final byteCount = byteData?.lengthInBytes;
+    final byteCount = byteData?.lengthInBytes ?? 0;
     var transparentByteCount = 0;
     for (var i = 0, len = byteData!.lengthInBytes, j = 0; i < len; i += 4) {
-      j = byteData.getUint8(i + 3) * 4;
-      if (i < 40) {}
+      final a = byteData.getUint8(i + 3);
+      j = a * 4;
       if (j > 0) {
         byteData.setUint8(i, _palette.getUint8(j));
         byteData.setUint8(i + 1, _palette.getUint8(j + 1));
         byteData.setUint8(i + 2, _palette.getUint8(j + 2));
-        byteData.setUint8(
-          i + 3,
-          math.min(255, byteData.getUint8(i + 3) + 255),
-        );
+        final palA = _palette.getUint8(j + 3);
+        final outA = (a * palA) ~/ 255;
+        byteData.setUint8(i + 3, outA);
+        if (outA == 0) {
+          transparentByteCount += 4;
+        }
       } else {
-        transparentByteCount = transparentByteCount + 4;
+        transparentByteCount += 4;
       }
-      if (i < 40) {}
     }
 
     Uint8List bitmap;

@@ -16,6 +16,22 @@ class HeatMapTilesProvider extends TileProvider {
   HeatMapTilesProvider(
       {required this.dataSource, required this.heatMapOptions});
 
+  double _calculateRadius(TileCoordinates coords) {
+    if (heatMapOptions.worldSpace) {
+      final centerLat = tile2Lat(coords.y + 0.5, coords.z);
+      final centerLon = tile2Lon(coords.x + 0.5, coords.z);
+      final center = LatLng(centerLat, centerLon);
+      final edge = const Distance().offset(center, heatMapOptions.radius, 90);
+      const crs = Epsg3857();
+      final pCenter = crs.latLngToOffset(center, coords.z.toDouble());
+      final pEdge = crs.latLngToOffset(edge, coords.z.toDouble());
+      return math.max(1.0, (pEdge.dx - pCenter.dx).abs());
+    } else {
+      var scale = coords.z / 22 * 1.22;
+      return math.max(1.0, heatMapOptions.radius * scale);
+    }
+  }
+
   @override
   ImageProvider getImage(TileCoordinates coordinates, TileLayer options) {
     var tileSize = options.tileDimension;
@@ -23,13 +39,14 @@ class HeatMapTilesProvider extends TileProvider {
     // disable zoom level 0 for now. ned to refactor _filterData
     List<DataPoint> filteredData =
         coordinates.z != 0 ? _filterData(coordinates, options) : [];
-    var scale = coordinates.z / 22 * 1.22;
-    final radius = heatMapOptions.radius * scale;
+    final radius = _calculateRadius(coordinates);
     var imageHMOptions = HeatMapOptions(
       radius: radius,
       minOpacity: heatMapOptions.minOpacity,
       gradient: heatMapOptions.gradient,
       blurFactor: heatMapOptions.blurFactor,
+      layerOpacity: heatMapOptions.layerOpacity,
+      worldSpace: heatMapOptions.worldSpace,
     );
     return HeatMapImage(filteredData, imageHMOptions, tileSize);
   }
@@ -42,15 +59,13 @@ class HeatMapTilesProvider extends TileProvider {
   _filterData(TileCoordinates coords, TileLayer options) {
     List<DataPoint> filteredData = [];
     final zoom = coords.z;
-    var scale = coords.z / 22 * 1.22;
-    final radius = 25 * scale;
+    final tileRadius = _calculateRadius(coords);
     var size = options.tileDimension;
-    final maxZoom = options.maxZoom;
-    final bounds = _bounds(coords, 1);
+    final buffer = math.max(1.0, (tileRadius / options.tileDimension).ceilToDouble());
+    final bounds = _bounds(coords, buffer);
     final points = dataSource.getData(bounds, zoom.toDouble());
-    final v = 1 / math.pow(2, math.max(0, math.min(maxZoom - zoom, 12)));
 
-    final cellSize = radius / 2;
+    final cellSize = math.max(1.0, tileRadius / 2);
 
     final gridOffset = size;
     final gridSize = size + gridOffset;
@@ -73,21 +88,27 @@ class HeatMapTilesProvider extends TileProvider {
         final x = ((pixel.dx) ~/ cellSize) + 2 + gridOffset.ceil();
         final y = ((pixel.dy) ~/ cellSize) + 2 + gridOffset.ceil();
 
-        var alt = point.intensity;
-        final k = alt * v;
+        // The heat map tool emits intensities already normalized to [0, 1], so
+        // they are painted as-is; no zoom attenuation is applied.
+        final k = point.intensity;
 
-        grid[y] = grid[y]
-          ..length = (gridSize / cellSize).ceil() + 2 + gridOffset.ceil();
-        var cell = grid[y][x];
-
-        if (cell == null) {
-          grid[y][x] = DataPoint(pixel.dx, pixel.dy, k);
-          cell = grid[y][x];
-        } else {
-          cell.merge(pixel.dx, pixel.dy, k);
+        if (y >= 0 && y < grid.length) {
+          final targetLen = (gridSize / cellSize).ceil() + 2 + gridOffset.ceil();
+          if (grid[y].length < targetLen) {
+            grid[y] = List<DataPoint?>.filled(targetLen, null, growable: true);
+          }
+          if (x >= 0 && x < grid[y].length) {
+            var cell = grid[y][x];
+            if (cell == null) {
+              grid[y][x] = DataPoint(pixel.dx, pixel.dy, k);
+              cell = grid[y][x];
+            } else {
+              cell.merge(pixel.dx, pixel.dy, k);
+            }
+            localMax = math.max(cell!.z, localMax);
+            localMin = math.min(cell.z, localMin);
+          }
         }
-        localMax = math.max(cell!.z, localMax);
-        localMin = math.min(cell.z, localMin);
 
         if (bounds.contains(point.latLng)) {
           filteredData.add(DataPoint(pixel.dx, pixel.dy, k));
