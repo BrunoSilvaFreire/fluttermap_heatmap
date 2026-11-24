@@ -34,6 +34,70 @@ void main() {
       expect(bytes[1], equals(0x4d));
     });
 
+    test('generate preserves smooth alpha gradient across distance from point',
+        () async {      // 50x50 heatmap with single point at (25, 25) and radius 15
+      final heatMap = HeatMap(
+        HeatMapOptions(radius: 15.0, blurFactor: 1.0),
+        50,
+        50,
+        [DataPoint(25.0, 25.0, 1.0)],
+      );
+
+      final bytes = await heatMap.generate();
+      expect(bytes[0], equals(0x42));
+      expect(bytes[1], equals(0x4d));
+
+      int getAlphaAt(int x, int y) {
+        final pixelOffset = rgba32HeaderSize + (y * 50 + x) * 4;
+        return bytes[pixelOffset + 3];
+      }
+
+      final centerAlpha = getAlphaAt(25, 25);
+      final midAlpha = getAlphaAt(32, 25); // distance 7
+      final edgeAlpha = getAlphaAt(38, 25); // distance 13
+      final outsideAlpha = getAlphaAt(45, 25); // distance 20 (outside radius 15)
+
+      // Center must be high opacity (normalized intensity 1.0 -> full alpha)
+      expect(centerAlpha, greaterThan(100));
+      // Mid must have smoothly faded and NOT be 255
+      expect(midAlpha, lessThan(centerAlpha));
+      expect(midAlpha, greaterThan(edgeAlpha));
+      // Edge must have faded even further
+      expect(edgeAlpha, greaterThan(0));
+      expect(edgeAlpha, lessThan(midAlpha));
+      // Outside radius must be transparent (no cutoff at the edge)
+      expect(outsideAlpha, equals(0));
+    });
+
+    test('intensity scales with normalized weight across the full range',
+        () async {
+      // The heat map tool emits weights normalized to [0, 1]. The painter must
+      // map the low end to minOpacity and the high end to full opacity, so
+      // relative value (not presence) drives color.
+      final heatMap = HeatMap(
+        HeatMapOptions(radius: 5.0),
+        100,
+        100,
+        [
+          DataPoint(25.0, 25.0, 0.0),
+          DataPoint(75.0, 75.0, 1.0),
+        ],
+      );
+
+      final bytes = await heatMap.generate();
+
+      int alphaAt(int x, int y) {
+        final pixelOffset = rgba32HeaderSize + (y * 100 + x) * 4;
+        return bytes[pixelOffset + 3];
+      }
+
+      final lowAlpha = alphaAt(25, 25);
+      final highAlpha = alphaAt(75, 75);
+
+      expect(highAlpha, greaterThan(lowAlpha));
+      expect(highAlpha, greaterThan(200));
+    });
+
     test(
         'generate returns kTransparentImage when every pixel stays transparent',
         () async {
@@ -266,14 +330,37 @@ void main() {
         greaterThan(low.generator.options.radius),
       );
 
-      // Existing intensity weighting (intensity / 2^min(maxZoom - zoom, 12)) is
-      // preserved; no new intensity-scaling behaviour is introduced here.
-      expect(low.data.first.z, closeTo(1 / 4096, 1e-12));
-      expect(high.data.first.z, closeTo(1 / 256, 1e-12));
+      // Weights are painted as-is (the heat map tool normalizes them to [0, 1]
+      // upstream), so no zoom-dependent intensity scaling is applied.
+      expect(low.data.first.z, closeTo(1.0, 1e-12));
+      expect(high.data.first.z, closeTo(1.0, 1e-12));
 
       // Rendering and decoding both resolutions must complete without throwing.
       expect((await _renderFrame(low)).image.width, equals(256));
       expect((await _renderFrame(high)).image.width, equals(256));
+    });
+
+    test('getImage with worldSpace=true scales geographic radius with zoom', () {
+      final point = WeightedLatLng(const LatLng(0.0, 0.0), 1.0);
+      final provider = HeatMapTilesProvider(
+        dataSource: InMemoryHeatMapDataSource(data: [point]),
+        heatMapOptions: HeatMapOptions(radius: 500.0, worldSpace: true),
+      );
+      final tileLayer = TileLayer(tileDimension: 256, maxZoom: 18);
+
+      final imgZ10 = provider.getImage(
+        const TileCoordinates(512, 512, 10),
+        tileLayer,
+      ) as HeatMapImage;
+      final imgZ12 = provider.getImage(
+        const TileCoordinates(2048, 2048, 12),
+        tileLayer,
+      ) as HeatMapImage;
+
+      // 2 zoom levels difference = 2^2 = 4x pixel radius for fixed world meters
+      final r10 = imgZ10.generator.options.radius;
+      final r12 = imgZ12.generator.options.radius;
+      expect(r12 / r10, closeTo(4.0, 0.05));
     });
   });
 

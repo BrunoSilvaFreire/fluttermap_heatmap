@@ -1,15 +1,17 @@
-import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart' hide Image;
 
 /// Painter for creating a grayscale version of the heatmap by painting the base image
 /// for each provided data point.
+///
+/// Point weights are expected to arrive already normalized to `[0, 1]` (the
+/// heat map tool does the normalization). Each weight is mapped linearly onto
+/// `[minOpacity, 1.0]` so the full gradient is used and relative differences —
+/// not raw magnitude — drive color.
 class GrayScaleHeatMapPainter extends CustomPainter {
   double minOpacity = 0.3;
   final Image baseCircle;
-  double? min;
-  double? max;
   double buffer;
   final List<DataPoint> data;
 
@@ -17,24 +19,19 @@ class GrayScaleHeatMapPainter extends CustomPainter {
       {required this.baseCircle,
       this.buffer = 0,
       required this.data,
-      minOpacity = 0.5,
-      this.min,
-      this.max});
+      double? minOpacity})
+      : minOpacity = minOpacity ?? 0.3;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (min == null || max == null) {
-      min = 0;
-      max = 2;
-    }
-
     final paint = Paint()..color = const Color.fromRGBO(0, 0, 0, 1);
 
     // offsets for centering the baseCircle when painting
     final yOffset = baseCircle.height / 2;
     final xOffset = baseCircle.width / 2;
     for (final point in data) {
-      final alpha = math.min(math.max(point.z / max!, minOpacity), 1.0);
+      final t = point.z.clamp(0.0, 1.0);
+      final alpha = minOpacity + (1.0 - minOpacity) * t;
 
       paint.color = Color.fromRGBO(0, 0, 0, alpha);
 

@@ -10,8 +10,8 @@ class BaseCirclePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final _width = size.width;
-    final _height = size.height;
+    final width = size.width;
+    final height = size.height;
 
     var pointPaint = Paint()..color = Colors.green;
 
@@ -19,7 +19,7 @@ class BaseCirclePainter extends CustomPainter {
 
     final circlePaint = Paint();
     final rect = Rect.fromCircle(
-        center: Offset(_width / 2, _height / 2), radius: radius);
+        center: Offset(width / 2, height / 2), radius: radius);
 
     // create radial gradient
     final gradient = const RadialGradient(
