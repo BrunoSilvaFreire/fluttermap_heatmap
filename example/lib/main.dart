@@ -8,10 +8,12 @@ import 'package:flutter_map_heatmap/flutter_map_heatmap.dart';
 import 'package:latlong2/latlong.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -20,30 +22,31 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: MyHomePage(title: 'flutter_mapmap heat_map demo'),
+      home: const MyHomePage(title: 'flutter_mapmap heat_map demo'),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key? key, required this.title}) : super(key: key);
+  const MyHomePage({super.key, required this.title});
 
   final String title;
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  StreamController<void> _rebuildStream = StreamController.broadcast();
+  final StreamController<void> _rebuildStream = StreamController.broadcast();
   List<WeightedLatLng> data = [];
-  List<Map<double, MaterialColor>> gradients = [
+  List<Map<double, Color>> gradients = [
     HeatMapOptions.defaultGradient,
     {0.25: Colors.blue, 0.55: Colors.red, 0.85: Colors.pink, 1.0: Colors.purple}
   ];
 
   var index = 0;
 
+  @override
   initState() {
     _loadData();
     super.initState();
@@ -82,10 +85,10 @@ class _MyHomePageState extends State<MyHomePage> {
       _rebuildStream.add(null);
     });
 
-    final map = new FlutterMap(
-      options: new MapOptions(
+    final map = FlutterMap(
+      options: const MapOptions(
         backgroundColor: Colors.transparent,
-        initialCenter: new LatLng(57.8827, -6.0400),
+        initialCenter: LatLng(57.8827, -6.0400),
         initialZoom: 8.0,
       ),
       children: [
@@ -94,8 +97,8 @@ class _MyHomePageState extends State<MyHomePage> {
         if (data.isNotEmpty)
           HeatMapLayer(
             heatMapDataSource: InMemoryHeatMapDataSource(data: data),
-            heatMapOptions: HeatMapOptions(
-                gradient: this.gradients[this.index], minOpacity: 0.1),
+            heatMapOptions:
+                HeatMapOptions(gradient: gradients[index], minOpacity: 0.1),
             reset: _rebuildStream.stream,
           )
       ],
@@ -113,7 +116,7 @@ class _MyHomePageState extends State<MyHomePage> {
       floatingActionButton: FloatingActionButton(
         onPressed: _incrementCounter,
         tooltip: 'Switch Gradient',
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
       ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
